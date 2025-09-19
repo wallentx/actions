@@ -1,10 +1,11 @@
+---
 name: "Get STS Credentials from Vault"
 description: "Gets STS credentials for assuming a role from vault"
 inputs:
-  vault_url:
+  vault_url: &vault_url_input
     description: "Full URL including port to vault"
     required: true
-  vault_token:
+  vault_token: &vault_token_input
     description: "Token for accessing vault"
     required: true
   backend_name:
@@ -14,22 +15,29 @@ inputs:
   role_name:
     description: "The role name to assume, as named in vault"
     required: true
-  ttl:
-    description: "Duration of the token (subject to AWS / Vault configured limits)"
+  ttl: &ttl_input
+    description: >-
+      Duration of the token (subject to AWS / Vault configured limits)
     default: "3600s"
     required: false
 runs:
   using: "composite"
   steps:
-    - name: Ensure dependencies are present
+    - &ensure_deps_step
+      name: Ensure dependencies are present
       run: |
         ( command -v apk && apk add jq curl curl-dev ) || true
-        ( command -v apt-get && apt-get update && apt-get install -y jq curl ) || true
+        ( command -v apt-get && apt-get update &&
+          apt-get install -y jq curl ) || true
       shell: sh
     - name: Get credentials from vault
       run: |
         temp_file=$(mktemp)
-        http_status=$(curl -s -o ${temp_file} -w "%{http_code}" --header "X-Vault-Token: ${{ inputs.vault_token }}" --request PUT -d "{\"ttl\":\"${{ inputs.ttl }}\"}" ${{ inputs.vault_url }}/v1/${{ inputs.backend_name }}/sts/${{ inputs.role_name }})
+        http_status=$(curl -s -o ${temp_file} -w "%{http_code}" \
+          --header "X-Vault-Token: ${{ inputs.vault_token }}" \
+          --request PUT \
+          -d "{\"ttl\":\"${{ inputs.ttl }}\"}" \
+          "${{ inputs.vault_url }}/v1/${{ inputs.backend_name }}/sts/${{ inputs.role_name }}")
         creds=$(cat ${temp_file})
         rm -f ${temp_file}
 

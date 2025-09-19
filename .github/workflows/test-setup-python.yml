@@ -1,6 +1,7 @@
+---
 name: test-setup-python
 
-on:
+"on": &common_triggers
   push:
     branches:
       - main
@@ -10,19 +11,26 @@ on:
     branches:
       - "**"
 
-concurrency:
+concurrency: &common_concurrency
   # SHA is added to the end if on `main` to let all main workflows run
-  group: ${{ github.ref }}-${{ github.workflow }}-${{ github.event_name }}-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/long_lived/')) && github.sha || '' }}
+  group: >-
+    ${{ github.ref }}-${{ github.workflow }}-${{ github.event_name }}-${{
+    (github.ref == 'refs/heads/main' ||
+    startsWith(github.ref, 'refs/heads/release/') ||
+    startsWith(github.ref, 'refs/heads/long_lived/')) && github.sha || '' }}
   cancel-in-progress: true
 
-defaults:
+defaults: &common_defaults
   run:
     shell: bash
 
 jobs:
   test:
-    name: ${{ matrix.os.name }} ${{ matrix.arch.name }} ${{ matrix.environment.name }} ${{ matrix.python.name }}
-    runs-on: ${{ matrix.os.runs-on[matrix.arch.matrix][matrix.environment.matrix] }}
+    name: >-
+      ${{ matrix.os.name }} ${{ matrix.arch.name }}
+      ${{ matrix.environment.name }} ${{ matrix.python.name }}
+    runs-on: >-
+      ${{ matrix.os.runs-on[matrix.arch.matrix][matrix.environment.matrix] }}
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -85,12 +93,12 @@ jobs:
             patch-specified: false
             allow-prerelease: true
             matrix: "py3.13"
-        arch:
+        arch: &common_arch
           - name: ARM
             matrix: arm
           - name: Intel
             matrix: intel
-        environment:
+        environment: &common_environment
           - name: Chia
             matrix: chia
             context: self-hosted
@@ -118,7 +126,8 @@ jobs:
               matrix: chia
 
     steps:
-      - uses: actions/checkout@v4
+      - &checkout_step
+        uses: actions/checkout@v4
 
       - name: Run the action
         uses: ./setup-python/
@@ -135,6 +144,11 @@ jobs:
 
       - name: Make sure pre-release version adjustment made if appropriate
         env:
-          RESULT: ${{ matrix.python.allow-prerelease && contains(steps.run-the-action.outputs.python-version-string, '.0-alpha') || ( steps.run-the-action.outputs.python-version-string == matrix.python.action ) }}
+          RESULT: >-
+            ${{ matrix.python.allow-prerelease &&
+            contains(steps.run-the-action.outputs.python-version-string,
+            '.0-alpha') || (
+            steps.run-the-action.outputs.python-version-string ==
+            matrix.python.action ) }}
         run: |
           ${RESULT}
